@@ -300,16 +300,27 @@ function loadLesson(lessonId) {
   if (!selectedLesson) return;
 
   // تضمين الفيديو بشكل مباشر ومضمون على الجوال والكمبيوتر
+  // تضمين الفيديو مع طبقة حماية تمنع الانتقال لـ YouTube
   const playerEl = document.getElementById('player');
   if (playerEl && selectedLesson.youtubeId) {
     playerEl.innerHTML = `
-      <iframe 
-        src="https://www.youtube-nocookie.com/embed/${selectedLesson.youtubeId}?rel=0" 
-        title="${selectedLesson.title}"
-        style="width: 100%; height: 100%; min-height: 220px; aspect-ratio: 16/9; border: 0; border-radius: 12px;"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-        allowfullscreen>
-      </iframe>
+      <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 12px; background: #000;">
+        
+        <!-- طبقة شفافة علوية تمنع الضغط على عنوان الفيديو وزر المشاركة -->
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 60px; z-index: 10; background: transparent;"></div>
+        
+        <!-- طبقة شفافة سفلية تمنع الضغط على زر "المشاهدة على يوتيوب" وشعار يوتيوب -->
+        <div style="position: absolute; bottom: 0; right: 0; width: 160px; height: 50px; z-index: 10; background: transparent;"></div>
+        
+        <!-- مشغل يوتيوب -->
+        <iframe 
+          src="https://www.youtube-nocookie.com/embed/${selectedLesson.youtubeId}?rel=0&modestbranding=1&controls=1" 
+          title="${selectedLesson.title}"
+          style="width: 100%; height: 100%; border: 0;"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+          allowfullscreen>
+        </iframe>
+      </div>
     `;
   }
 
