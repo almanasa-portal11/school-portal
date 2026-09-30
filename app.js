@@ -21,7 +21,6 @@ const platformData = {
   lessonsDatabase: {}
 };
 
-let player = null;
 let currentUnits = [];
 let selectedSectionId = "";
 let selectedSubjectId = "";
@@ -30,18 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // 1. تعبئة القوائم المنسدلة
   populateDropdowns();
 
-  // 2. إظهار النافذة الترحيبية لاختيار الشعبة فوراً
+  // 2. إظهار النافذة الترحيبية لاختيار الشعبة
   showWelcomeModal();
 
-  // 3. تهيئة مشغل الفيديو Plyr
-  if (document.getElementById('player')) {
-    player = new Plyr('#player', {
-      controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'fullscreen'],
-      youtube: { noCookie: true, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 }
-    });
-  }
-
-  // 4. جلب البيانات من جدول جوجل
+  // 3. جلب البيانات من جدول جوجل
   fetchLessonsFromSheet();
 });
 
@@ -88,7 +79,6 @@ function populateDropdowns() {
 // جلب الحصص من شيت جوجل
 async function fetchLessonsFromSheet() {
   if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes('ضع_رابط')) {
-    console.warn("تنبيه: لم يتم وضع رابط جدول جوجل بشكل صحيح.");
     return;
   }
 
@@ -105,7 +95,7 @@ async function fetchLessonsFromSheet() {
   }
 }
 
-// دالة ذكية لتفكيك CSV بشكل يدعم الفواصل والنصوص بين التنصيص
+// دالة تفكيك CSV
 function parseCSVRows(csvText) {
   const rows = [];
   let currentRow = [];
@@ -151,7 +141,7 @@ function parseCSVRows(csvText) {
   return rows;
 }
 
-// استخراج كود الفيديو حتى لو قام المستخدم بوضع رابط يوتيوب كامل بالخطأ
+// استخراج كود يوتيوب تلقائياً
 function extractYouTubeId(urlOrId) {
   if (!urlOrId) return '';
   urlOrId = urlOrId.trim();
@@ -163,7 +153,7 @@ function extractYouTubeId(urlOrId) {
   return urlOrId;
 }
 
-// تحويل الجدول إلى هيكل البيانات الرئيسي للموقع
+// تحويل CSV إلى بيانات المنصة
 function parseCSVToDatabase(csvText) {
   const rows = parseCSVRows(csvText);
   if (rows.length <= 1) return;
@@ -176,9 +166,7 @@ function parseCSVToDatabase(csvText) {
 
     let [sec, sub, unit, lessonId, title, youtubeId, duration, summary, pdfUrl] = row;
     
-    // تنظيف واستخراج كود يوتيوب تلقائياً
     const cleanYoutubeId = extractYouTubeId(youtubeId);
-
     const key = `${sec}_${sub}`;
 
     if (!platformData.lessonsDatabase[key]) {
@@ -202,7 +190,7 @@ function parseCSVToDatabase(csvText) {
   }
 }
 
-// زر تأكيد اختيار الشعبة
+// تأكيد اختيار الشعبة
 function confirmSectionSelection() {
   const select = document.getElementById('modal-section-select');
   if (select) {
@@ -213,7 +201,7 @@ function confirmSectionSelection() {
   loadSelectedCourseData();
 }
 
-// تغيير المادة من الشريط العلوي
+// تغيير المادة
 function onSubjectChange() {
   const select = document.getElementById('header-subject-select');
   if (select) {
@@ -222,12 +210,12 @@ function onSubjectChange() {
   loadSelectedCourseData();
 }
 
-// فتح النافذة الترحيبية يدوياً
+// فتح النافذة الترحيبية
 function openSelectionModal() {
   showWelcomeModal();
 }
 
-// تحميل الفهرس في القائمة الجانبية
+// تحميل بيانات المادة
 function loadSelectedCourseData() {
   const key = `${selectedSectionId}_${selectedSubjectId}`;
   currentUnits = platformData.lessonsDatabase[key] || [];
@@ -237,6 +225,11 @@ function loadSelectedCourseData() {
   if (label) label.innerText = `الشعبة: ${secName}`;
 
   renderTree(currentUnits);
+
+  // تشغيل الحصة الأولى تلقائياً إن وجدت
+  if (currentUnits.length > 0 && currentUnits[0].lessons.length > 0) {
+    loadLesson(currentUnits[0].lessons[0].id);
+  }
 }
 
 // رسم القائمة الجانبية
@@ -295,7 +288,7 @@ function toggleUnit(idx) {
   if (el) el.classList.toggle('hidden');
 }
 
-// تشغيل الفيديو وتحديث الملخص
+// تشغيل الفيديو وتحديث الملخص (حل الشاشة السوداء)
 function loadLesson(lessonId) {
   let selectedLesson = null;
 
@@ -306,12 +299,18 @@ function loadLesson(lessonId) {
 
   if (!selectedLesson) return;
 
-  // تحديث مصدر مشغل الفيديو
-  if (player) {
-    player.source = {
-      type: 'video',
-      sources: [{ src: selectedLesson.youtubeId, provider: 'youtube' }]
-    };
+  // تضمين الفيديو بشكل مباشر ومضمون على الجوال والكمبيوتر
+  const playerEl = document.getElementById('player');
+  if (playerEl && selectedLesson.youtubeId) {
+    playerEl.innerHTML = `
+      <iframe 
+        src="https://www.youtube-nocookie.com/embed/${selectedLesson.youtubeId}?rel=0" 
+        title="${selectedLesson.title}"
+        style="width: 100%; height: 100%; min-height: 220px; aspect-ratio: 16/9; border: 0; border-radius: 12px;"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+        allowfullscreen>
+      </iframe>
+    `;
   }
 
   const titleEl = document.getElementById('lesson-title');
@@ -321,7 +320,6 @@ function loadLesson(lessonId) {
   if (titleEl) titleEl.innerText = selectedLesson.title;
   if (durEl) durEl.innerText = `المدة: ${selectedLesson.duration}`;
   
-  // تحويل الأسطر الجديدة إلى <br> ليظهر الملخص منسقاً وكاملاً
   if (sumEl) {
     sumEl.innerHTML = selectedLesson.summary ? selectedLesson.summary.replace(/\n/g, '<br>') : '';
   }
