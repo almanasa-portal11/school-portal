@@ -141,13 +141,27 @@ function parseCSVRows(csvText) {
   return rows;
 }
 
-// استخراج كود يوتيوب تلقائياً
+// دوال مطابقة المعرفات والشعبة والمادة
+function resolveSectionId(secStr) {
+  if (!secStr) return '';
+  secStr = secStr.trim();
+  const matched = platformData.sections.find(s => s.id === secStr || s.name === secStr);
+  return matched ? matched.id : secStr;
+}
+
+function resolveSubjectId(subStr) {
+  if (!subStr) return '';
+  subStr = subStr.trim();
+  const matched = platformData.subjects.find(s => s.id === subStr || s.name === subStr);
+  return matched ? matched.id : subStr;
+}
+
 // دالة استخراج المعرف سواء كان من يوتيوب أو جوجل درايف
 function extractVideoId(urlOrId) {
-  if (!urlOrId) return '';
+  if (!urlOrId) return { type: 'youtube', id: '' };
   urlOrId = urlOrId.trim();
 
-  // إذا كان رابط Google Drive
+  // 1. رابط Google Drive
   if (urlOrId.includes('drive.google.com')) {
     const driveMatch = urlOrId.match(/\/d\/([a-zA-Z0-9_-]+)/);
     if (driveMatch && driveMatch[1]) {
@@ -155,17 +169,21 @@ function extractVideoId(urlOrId) {
     }
   }
 
-  // إذا كان رابط أو معرف YouTube
+  // 2. رابط YouTube
   const ytRegExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
   const match = urlOrId.match(ytRegExp);
-  if (match && match[2].length === 11) {
+  if (match && match[2] && match[2].length === 11) {
     return { type: 'youtube', id: match[2] };
   }
 
-  // افترض أنه معرف عادي
+  // 3. أيدي يوتيوب مجرد (11 حرف)
+  if (urlOrId.length === 11 && !urlOrId.includes('/')) {
+    return { type: 'youtube', id: urlOrId };
+  }
+
+  // 4. أيدي جوجل درايف مجرد
   return { type: 'drive', id: urlOrId };
 }
-
 
 // تحويل CSV إلى بيانات المنصة
 function parseCSVToDatabase(csvText) {
@@ -176,12 +194,13 @@ function parseCSVToDatabase(csvText) {
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-    if (row.length < 9) continue;
+    if (row.length < 6) continue;
 
-    let [sec, sub, unit, lessonId, title, youtubeId, duration, summary, pdfUrl] = row;
+    let [sec, sub, unit, lessonId, title, youtubeId, duration = '', summary = '', pdfUrl = ''] = row;
     
-    const cleanYoutubeId = extractYouTubeId(youtubeId);
-    const key = `${sec}_${sub}`;
+    const cleanSec = resolveSectionId(sec);
+    const cleanSub = resolveSubjectId(sub);
+    const key = `${cleanSec}_${cleanSub}`;
 
     if (!platformData.lessonsDatabase[key]) {
       platformData.lessonsDatabase[key] = [];
@@ -196,7 +215,7 @@ function parseCSVToDatabase(csvText) {
     unitGroup.lessons.push({
       id: lessonId,
       title: title,
-      youtubeId: cleanYoutubeId,
+      youtubeId: youtubeId,
       duration: duration,
       summary: summary,
       pdfUrl: pdfUrl
@@ -302,16 +321,12 @@ function toggleUnit(idx) {
   if (el) el.classList.toggle('hidden');
 }
 
-// تشغيل الفيديو وتحديث الملخص (حل الشاشة السوداء)
-// تشغيل الفيديو وتحديث الملخص مع إخفاء شعارات يوتيوب نهائياً وتغطيتها
-// تشغيل الفيديو وتحديث الملخص بتنسيق كامل ومتناسق لكافة الشاشات
-// تشغيل الفيديو وتحديث الملخص مع حجب شريط العنوان وشعار يوتيوب
 // تشغيل الفيديو وتحديث الملخص (يدعم Google Drive و YouTube)
 function loadLesson(lessonId) {
   let selectedLesson = null;
 
   currentUnits.forEach(u => {
-    const found = u.lessons.find(l => l.id === lessonId);
+    const found = u.lessons.find(l => String(l.id) === String(lessonId));
     if (found) selectedLesson = found;
   });
 
@@ -322,7 +337,6 @@ function loadLesson(lessonId) {
     const videoData = extractVideoId(selectedLesson.youtubeId);
 
     if (videoData.type === 'drive') {
-      // مشغل Google Drive النقائي والتنفيذي السريع
       playerEl.innerHTML = `
         <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 12px; background: #000; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
           <iframe 
@@ -335,7 +349,6 @@ function loadLesson(lessonId) {
         </div>
       `;
     } else {
-      // مشغل YouTube المقيد
       playerEl.innerHTML = `
         <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 12px; background: #000; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
           <iframe 
