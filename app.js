@@ -306,22 +306,155 @@ function renderTree(units) {
         </button>
       `;
     });
-    lessonsList += `</div>`;
+    // ============================================================
+// مشغل الحصص — متجاوب مع كل الأجهزة + أزرار السرعة والجودة
+// استبدل به دالة loadLesson القديمة (وخلّي toggleUnit و extractVideoId زي ما هنّ)
+// ============================================================
 
-    unitBox.innerHTML = unitHeader + lessonsList;
-    container.appendChild(unitBox);
+// ---------- ستايل المشغل (بينحط مرة وحدة تلقائياً) ----------
+(function injectPlayerStyles() {
+  if (document.getElementById('vp-styles')) return;
+  const css = `
+    .vp-wrap { width: 100%; max-width: 100%; }
+    /* نسبة 16:9 تشتغل على كل المتصفحات القديمة والجديدة (بديل aspect-ratio) */
+    .vp-ratio {
+      position: relative;
+      width: 100%;
+      height: 0;
+      padding-top: 56.25%;
+      overflow: hidden;
+      border-radius: 12px;
+      background: #000;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,.5);
+    }
+    .vp-ratio iframe {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      border: 0; display: block;
+    }
+    .vp-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .vp-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .vp-label { font-size: 13px; opacity: .75; margin-inline-end: 2px; }
+    .vp-btn {
+      min-height: 38px;
+      padding: 6px 12px;
+      border: 1px solid rgba(128,128,128,.4);
+      border-radius: 8px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .vp-btn.vp-active { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .vp-select {
+      min-height: 38px;
+      padding: 6px 10px;
+      border: 1px solid rgba(128,128,128,.4);
+      border-radius: 8px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 14px;
+    }
+    .vp-select option { color: #000; }
+    .vp-hint { font-size: 13px; opacity: .75; }
+    @media (max-width: 480px) {
+      .vp-ratio { border-radius: 8px; }
+      .vp-btn { padding: 6px 10px; }
+    }
+  `;
+  const style = document.createElement('style');
+  style.id = 'vp-styles';
+  style.textContent = css;
+  document.head.appendChild(style);
+})();
+
+// ---------- تحميل YouTube IFrame API ----------
+let ytPlayer = null;
+let ytApiPromise = null;
+let lessonLoadToken = 0;
+
+function loadYouTubeApi() {
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (ytApiPromise) return ytApiPromise;
+  ytApiPromise = new Promise(resolve => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof prev === 'function') prev();
+      resolve();
+    };
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(s);
+  });
+  return ytApiPromise;
+}
+
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+// ---------- أزرار السرعة والجودة (يوتيوب) ----------
+function buildYouTubeControls(container) {
+  const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  const qualities = [
+    { label: 'تلقائي', value: 'default' },
+    { label: '360p',   value: 'medium' },
+    { label: '480p',   value: 'large' },
+    { label: '720p',   value: 'hd720' },
+    { label: '1080p',  value: 'hd1080' }
+  ];
+
+  const speedBtns = speeds.map(s =>
+    `<button type="button" class="vp-btn${s === 1 ? ' vp-active' : ''}" data-speed="${s}">${s}x</button>`
+  ).join('');
+
+  const qualityOpts = qualities.map(q =>
+    `<option value="${q.value}">${q.label}</option>`
+  ).join('');
+
+  container.innerHTML = `
+    <div class="vp-group">
+      <span class="vp-label">السرعة:</span>${speedBtns}
+    </div>
+    <div class="vp-group">
+      <span class="vp-label">الجودة:</span>
+      <select class="vp-select" id="vp-quality">${qualityOpts}</select>
+    </div>
+  `;
+
+  container.querySelectorAll('[data-speed]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!ytPlayer || !ytPlayer.setPlaybackRate) return;
+      ytPlayer.setPlaybackRate(parseFloat(btn.dataset.speed));
+      container.querySelectorAll('[data-speed]').forEach(b => b.classList.remove('vp-active'));
+      btn.classList.add('vp-active');
+    });
   });
 
-  const countBadge = document.getElementById('lesson-count-badge');
-  if (countBadge) countBadge.innerText = `${totalLessons} حصة`;
+  const qSelect = container.querySelector('#vp-quality');
+  qSelect.addEventListener('change', () => {
+    if (!ytPlayer || !ytPlayer.setPlaybackQuality) return;
+    // ملاحظة: يوتيوب صار يعتبر هذا الأمر "اقتراح" وممكن يتجاهله حسب النت والجهاز
+    ytPlayer.setPlaybackQuality(qSelect.value);
+  });
 }
 
-function toggleUnit(idx) {
-  const el = document.getElementById(`unit-${idx}`);
-  if (el) el.classList.toggle('hidden');
-}
-
-// 📱📱 تشغيل الفيديو المتجوب والخفيف لجميع الشاشات والهواتف
+// ---------- تشغيل الحصة ----------
 function loadLesson(lessonId) {
   let selectedLesson = null;
 
@@ -332,36 +465,68 @@ function loadLesson(lessonId) {
 
   if (!selectedLesson) return;
 
+  const token = ++lessonLoadToken;
+
+  // تنظيف المشغل السابق
+  if (ytPlayer && typeof ytPlayer.destroy === 'function') {
+    try { ytPlayer.destroy(); } catch (e) {}
+  }
+  ytPlayer = null;
+
   const playerEl = document.getElementById('player');
   if (playerEl && selectedLesson.youtubeId) {
     const videoData = extractVideoId(selectedLesson.youtubeId);
+    const safeTitle = escapeHtml(selectedLesson.title);
 
     if (videoData.type === 'drive') {
+      // ----- جوجل درايف -----
       playerEl.innerHTML = `
-        <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 12px; background: #000; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
-          <iframe 
-            src="https://drive.google.com/file/d/${videoData.id}/preview" 
-            title="${selectedLesson.title}"
-            style="width: 100%; height: 100%; border: 0; display: block;"
-            allow="autoplay; encrypted-media" 
-            loading="lazy"
-            allowfullscreen>
-          </iframe>
+        <div class="vp-wrap">
+          <div class="vp-ratio">
+            <iframe
+              src="https://drive.google.com/file/d/${videoData.id}/preview"
+              title="${safeTitle}"
+              allow="autoplay; encrypted-media; fullscreen"
+              loading="lazy"
+              allowfullscreen>
+            </iframe>
+          </div>
+          <div class="vp-controls">
+            <span class="vp-hint">للسرعة والجودة: اضغط أيقونة ⚙️ داخل المشغل</span>
+            <a class="vp-btn" href="https://drive.google.com/file/d/${videoData.id}/view"
+               target="_blank" rel="noopener">فتح في درايف</a>
+          </div>
         </div>
       `;
     } else {
+      // ----- يوتيوب (مع أزرار السرعة والجودة) -----
       playerEl.innerHTML = `
-        <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 12px; background: #000; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
-          <iframe 
-            src="https://www.youtube-nocookie.com/embed/${videoData.id}?rel=0&modestbranding=1&controls=1" 
-            title="${selectedLesson.title}"
-            style="width: 100%; height: 100%; border: 0; display: block;"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-            loading="lazy"
-            allowfullscreen>
-          </iframe>
+        <div class="vp-wrap">
+          <div class="vp-ratio"><div id="yt-target"></div></div>
+          <div class="vp-controls" id="vp-controls"></div>
         </div>
       `;
+
+      loadYouTubeApi().then(() => {
+        if (token !== lessonLoadToken) return; // المستخدم انتقل لحصة ثانية
+        ytPlayer = new YT.Player('yt-target', {
+          host: 'https://www.youtube-nocookie.com',
+          videoId: videoData.id,
+          playerVars: {
+            rel: 0,
+            modestbranding: 1,
+            controls: 1,
+            playsinline: 1,
+            origin: window.location.origin
+          },
+          events: {
+            onReady: () => {
+              const controls = document.getElementById('vp-controls');
+              if (controls && token === lessonLoadToken) buildYouTubeControls(controls);
+            }
+          }
+        });
+      });
     }
   }
 
@@ -371,7 +536,7 @@ function loadLesson(lessonId) {
 
   if (titleEl) titleEl.innerText = selectedLesson.title;
   if (durEl) durEl.innerText = `المدة: ${selectedLesson.duration}`;
-  
+
   if (sumEl) {
     sumEl.innerHTML = selectedLesson.summary ? selectedLesson.summary.replace(/\n/g, '<br>') : '';
   }
