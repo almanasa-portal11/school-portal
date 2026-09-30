@@ -289,6 +289,7 @@ function toggleUnit(idx) {
 }
 
 // تشغيل الفيديو وتحديث الملخص (حل الشاشة السوداء)
+// تشغيل الفيديو وتحديث الملخص مع إخفاء شعارات يوتيوب نهائياً وتغطيتها
 function loadLesson(lessonId) {
   let selectedLesson = null;
 
@@ -299,27 +300,30 @@ function loadLesson(lessonId) {
 
   if (!selectedLesson) return;
 
-  // تضمين الفيديو بشكل مباشر ومضمون على الجوال والكمبيوتر
-  // تضمين الفيديو مع طبقة حماية تمنع الانتقال لـ YouTube
+  // تضمين الفيديو مع تكبير خفيف وقص للحواف لمنع ظهور "Watch on YouTube"
   const playerEl = document.getElementById('player');
   if (playerEl && selectedLesson.youtubeId) {
     playerEl.innerHTML = `
       <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 12px; background: #000;">
         
-        <!-- طبقة شفافة علوية تمنع الضغط على عنوان الفيديو وزر المشاركة -->
-        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 60px; z-index: 10; background: transparent;"></div>
-        
-        <!-- طبقة شفافة سفلية تمنع الضغط على زر "المشاهدة على يوتيوب" وشعار يوتيوب -->
-        <div style="position: absolute; bottom: 0; right: 0; width: 160px; height: 50px; z-index: 10; background: transparent;"></div>
-        
-        <!-- مشغل يوتيوب -->
+        <!-- مشغل يوتيوب مع تكبير خفيف لقص الحواف والرموز الخارجية -->
         <iframe 
-          src="https://www.youtube-nocookie.com/embed/${selectedLesson.youtubeId}?rel=0&modestbranding=1&controls=1" 
+          src="https://www.youtube-nocookie.com/embed/${selectedLesson.youtubeId}?rel=0&modestbranding=1&controls=1&showinfo=0" 
           title="${selectedLesson.title}"
-          style="width: 100%; height: 100%; border: 0;"
+          style="width: 106%; height: 114%; position: absolute; top: -7%; left: -3%; border: 0;"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
           allowfullscreen>
         </iframe>
+
+        <!-- غطاء معتم أسود في الزاوية العلوية لإخفاء عنوان وشعار يوتيوب علوياً -->
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 48px; z-index: 10; background: linear-gradient(to bottom, #000 60%, transparent); pointer-events: auto;"></div>
+
+        <!-- غطاء معتم أسود في الزاوية السفلية اليسرى لإخفاء أي أزرار جانبية -->
+        <div style="position: absolute; bottom: 0; left: 0; width: 120px; height: 45px; background: #000; z-index: 10; pointer-events: auto;"></div>
+
+        <!-- غطاء معتم أسود في الزاوية السفلية اليمنى لإخفاء زر Watch on YouTube والشعار تماماً -->
+        <div style="position: absolute; bottom: 0; right: 0; width: 220px; height: 48px; background: #000; z-index: 10; pointer-events: auto;"></div>
+
       </div>
     `;
   }
