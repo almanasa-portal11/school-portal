@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>المنصة التعليمية - الحادي عشر علمي</title>
+  <!-- خط "Tajawal" الرسمي -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Plyr CSS (مشغل الفيديو) -->
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+  <style>
+    body { font-family: 'Tajawal', sans-serif; }
+    .plyr__controls__item[data-plyr="pip"],
+    .plyr__controls__item[data-plyr="airplay"] { display: none; }
+    
+    /* شريط التمرير المخصص */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+  <!-- نافذة اختيار الشعبة فقط عند الدخول -->
+  <div id="welcome-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-md w-full p-6 md:p-8 shadow-2xl space-y-6 text-center">
+      
+      <div class="w-16 h-16 bg-indigo-950 border border-indigo-500/30 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">
+        🎓
+      </div>
+
+      <div class="space-y-2">
+        <h2 class="text-2xl font-extrabold text-white">المنصة التعليمية الرسمية</h2>
+        <p class="text-xs text-slate-400">الصف الحادي عشر العلمي - حدد شعبتك للبدء</p>
+      </div>
+
+      <div class="text-right">
+        <label class="block text-xs font-semibold text-slate-300 mb-1.5">اختر الشعبة / القسم</label>
+        <select id="modal-section-select" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 transition cursor-pointer">
+          <option value="sec-ab" class="bg-slate-900 text-white">شعبة (أ + ب)</option>
+          <option value="sec-cd" class="bg-slate-900 text-white">شعبة (ج + د)</option>
+          <option value="sec-ef" class="bg-slate-900 text-white">شعبة (و + ه)</option>
+        </select>
+      </div>
+
+      <button onclick="confirmSectionSelection()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-indigo-600/20 text-sm">
+        تأكيد الشعبة والدخول
+      </button>
+
+    </div>
+  </div>
+
+  <!-- الهيدر العلوي الرسمي -->
+  <header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      
+      <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 text-white font-black text-lg px-3 py-1 rounded-lg">11</div>
+        <div>
+          <h1 class="text-base font-bold text-white leading-tight">بوابة الحصص المسجلة</h1>
+          <button onclick="openSelectionModal()" class="text-[11px] text-indigo-400 hover:underline flex items-center gap-1">
+            <span id="current-section-label">الشعبة: لم تحدد</span> ✏️ (تغيير)
+          </button>
+        </div>
+      </div>
+
+      <!-- قائمة المادة مباشرة في الأعلى للتنقل السريع -->
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-slate-400 font-semibold">المادة:</span>
+        <select id="header-subject-select" onchange="onSubjectChange()" class="bg-slate-800 border border-slate-700 text-white text-xs font-bold rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
+          <option value="arabic" class="bg-slate-900 text-white">اللغة العربية</option>
+          <option value="english" class="bg-slate-900 text-white">اللغة الإنجليزية</option>
+          <option value="islamic" class="bg-slate-900 text-white">التربية الإسلامية</option>
+          <option value="math" class="bg-slate-900 text-white">الرياضيات</option>
+          <option value="biology" class="bg-slate-900 text-white">العلوم الحياتية (الأحياء)</option>
+          <option value="chemistry" class="bg-slate-900 text-white">الكيمياء</option>
+          <option value="physics" class="bg-slate-900 text-white">الفيزياء</option>
+          <option value="technology" class="bg-slate-900 text-white">التكنولوجيا</option>
+        </select>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- محتوى المنصة الرئيسي -->
+  <main class="max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 w-full">
+    
+    <!-- مشغل الفيديو والملخص -->
+    <section class="lg:col-span-2 space-y-5">
+      <div class="rounded-xl overflow-hidden shadow-xl bg-black border border-slate-800 aspect-video">
+        <div id="player" data-plyr-provider="youtube" data-plyr-embed-id=""></div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+        <div class="flex justify-between items-start border-b border-slate-800 pb-4">
+          <div>
+            <h2 id="lesson-title" class="text-xl font-bold text-white">اختر حصة للبدء</h2>
+            <p id="lesson-duration" class="text-xs text-slate-400 mt-1">المدة: --:--</p>
+          </div>
+          <a id="pdf-btn" href="#" target="_blank" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2.5 rounded-lg font-bold transition">
+            تحميل ملخص (PDF)
+          </a>
+        </div>
+
+        <div>
+          <h3 class="text-sm font-bold text-indigo-400 mb-2">ملخص الحصة والنقاط الرئيسية</h3>
+          <div id="lesson-summary" class="prose prose-invert max-w-none text-slate-300 text-xs leading-relaxed">
+            الرجاء اختيار الحصة المطلوبة من القائمة الجانبية لمشاهدة التسجيل وقراءة الملخص المرفق.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- القائمة الجانبية لفهرس الحصص -->
+    <aside class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col space-y-3 h-[78vh]">
+      <div class="border-b border-slate-800 pb-3 flex justify-between items-center">
+        <h3 class="text-sm font-bold text-slate-200">فهرس الوحدات والحصص</h3>
+        <span id="lesson-count-badge" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">0 حصص</span>
+      </div>
+
+      <!-- شجرة الحصص والوحدات -->
+      <div id="course-tree" class="space-y-2.5 overflow-y-auto flex-1 pr-1 custom-scrollbar">
+      </div>
+    </aside>
+
+  </main>
+
+  <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
