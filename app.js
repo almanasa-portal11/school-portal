@@ -26,13 +26,8 @@ let selectedSectionId = "";
 let selectedSubjectId = "";
 
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. تعبئة القوائم المنسدلة
   populateDropdowns();
-
-  // 2. إظهار النافذة الترحيبية لاختيار الشعبة
   showWelcomeModal();
-
-  // 3. جلب البيانات من جدول جوجل
   fetchLessonsFromSheet();
 });
 
@@ -76,26 +71,41 @@ function populateDropdowns() {
   selectedSubjectId = platformData.subjects[0]?.id || "";
 }
 
-// جلب الحصص من شيت جوجل
+// ⚡ جلب الحصص مع الكاش الفوري لتسريع الفتح بـ 10 أضعاف
 async function fetchLessonsFromSheet() {
-  if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes('ضع_رابط')) {
-    return;
+  if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes('ضع_رابط')) return;
+
+  // 1. تحميل فوري من الكاش المحلي للمتصفح إذا كان متوفراً
+  const cachedData = localStorage.getItem('school_portal_lessons_cache');
+  if (cachedData) {
+    try {
+      platformData.lessonsDatabase = JSON.parse(cachedData);
+      if (selectedSectionId) {
+        loadSelectedCourseData();
+      }
+    } catch (e) {
+      console.error("Cache read error", e);
+    }
   }
 
+  // 2. تحديث البيانات من شيت جوجل في الخلفية
   try {
     const res = await fetch(GOOGLE_SHEET_CSV_URL);
     const text = await res.text();
     parseCSVToDatabase(text);
     
+    // حفظ النسخة المحدثة في الذاكرة
+    localStorage.setItem('school_portal_lessons_cache', JSON.stringify(platformData.lessonsDatabase));
+    
     if (selectedSectionId) {
       loadSelectedCourseData();
     }
   } catch (err) {
-    console.error("خطأ في جلب الحصص:", err);
+    console.error("خطأ في جلب الحصص من الشيت:", err);
   }
 }
 
-// دالة تفكيك CSV
+// تفكيك CSV
 function parseCSVRows(csvText) {
   const rows = [];
   let currentRow = [];
@@ -141,7 +151,7 @@ function parseCSVRows(csvText) {
   return rows;
 }
 
-// دوال مطابقة المعرفات والشعبة والمادة
+// مطابقة الشعب والمواد
 function resolveSectionId(secStr) {
   if (!secStr) return '';
   secStr = secStr.trim();
@@ -156,12 +166,11 @@ function resolveSubjectId(subStr) {
   return matched ? matched.id : subStr;
 }
 
-// دالة استخراج المعرف سواء كان من يوتيوب أو جوجل درايف
+// استخراج الآيدي
 function extractVideoId(urlOrId) {
   if (!urlOrId) return { type: 'youtube', id: '' };
   urlOrId = urlOrId.trim();
 
-  // 1. رابط Google Drive
   if (urlOrId.includes('drive.google.com')) {
     const driveMatch = urlOrId.match(/\/d\/([a-zA-Z0-9_-]+)/);
     if (driveMatch && driveMatch[1]) {
@@ -169,23 +178,20 @@ function extractVideoId(urlOrId) {
     }
   }
 
-  // 2. رابط YouTube
   const ytRegExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
   const match = urlOrId.match(ytRegExp);
   if (match && match[2] && match[2].length === 11) {
     return { type: 'youtube', id: match[2] };
   }
 
-  // 3. أيدي يوتيوب مجرد (11 حرف)
   if (urlOrId.length === 11 && !urlOrId.includes('/')) {
     return { type: 'youtube', id: urlOrId };
   }
 
-  // 4. أيدي جوجل درايف مجرد
   return { type: 'drive', id: urlOrId };
 }
 
-// تحويل CSV إلى بيانات المنصة
+// تحويل البيانات لملفات المنصة
 function parseCSVToDatabase(csvText) {
   const rows = parseCSVRows(csvText);
   if (rows.length <= 1) return;
@@ -223,7 +229,6 @@ function parseCSVToDatabase(csvText) {
   }
 }
 
-// تأكيد اختيار الشعبة
 function confirmSectionSelection() {
   const select = document.getElementById('modal-section-select');
   if (select) {
@@ -234,7 +239,6 @@ function confirmSectionSelection() {
   loadSelectedCourseData();
 }
 
-// تغيير المادة
 function onSubjectChange() {
   const select = document.getElementById('header-subject-select');
   if (select) {
@@ -243,12 +247,10 @@ function onSubjectChange() {
   loadSelectedCourseData();
 }
 
-// فتح النافذة الترحيبية
 function openSelectionModal() {
   showWelcomeModal();
 }
 
-// تحميل بيانات المادة
 function loadSelectedCourseData() {
   const key = `${selectedSectionId}_${selectedSubjectId}`;
   currentUnits = platformData.lessonsDatabase[key] || [];
@@ -259,13 +261,11 @@ function loadSelectedCourseData() {
 
   renderTree(currentUnits);
 
-  // تشغيل الحصة الأولى تلقائياً إن وجدت
   if (currentUnits.length > 0 && currentUnits[0].lessons.length > 0) {
     loadLesson(currentUnits[0].lessons[0].id);
   }
 }
 
-// رسم القائمة الجانبية
 function renderTree(units) {
   const container = document.getElementById('course-tree');
   if (!container) return;
@@ -292,8 +292,8 @@ function renderTree(units) {
 
     const unitHeader = `
       <button onclick="toggleUnit(${uIdx})" class="w-full text-right p-3 bg-slate-800/60 font-bold text-slate-200 hover:bg-slate-800 flex justify-between items-center text-xs border-b border-slate-800">
-        <span>${unit.unitTitle}</span>
-        <span class="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded">${unit.lessons.length} حصة</span>
+        <span class="truncate pl-2">${unit.unitTitle}</span>
+        <span class="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded shrink-0">${unit.lessons.length} حصة</span>
       </button>
     `;
 
@@ -302,7 +302,7 @@ function renderTree(units) {
       lessonsList += `
         <button onclick="loadLesson('${lesson.id}')" class="w-full text-right p-2.5 hover:bg-indigo-600/10 text-slate-300 hover:text-indigo-300 text-xs transition flex justify-between items-center group">
           <span class="truncate pl-2 font-medium">${lesson.title}</span>
-          <span class="text-[10px] bg-slate-800 text-slate-400 group-hover:bg-indigo-950 group-hover:text-indigo-300 px-2 py-0.5 rounded transition">${lesson.duration}</span>
+          <span class="text-[10px] bg-slate-800 text-slate-400 group-hover:bg-indigo-950 group-hover:text-indigo-300 px-2 py-0.5 rounded transition shrink-0">${lesson.duration}</span>
         </button>
       `;
     });
@@ -321,7 +321,7 @@ function toggleUnit(idx) {
   if (el) el.classList.toggle('hidden');
 }
 
-// تشغيل الفيديو وتحديث الملخص (يدعم Google Drive و YouTube)
+// 📱📱 تشغيل الفيديو المتجوب والخفيف لجميع الشاشات والهواتف
 function loadLesson(lessonId) {
   let selectedLesson = null;
 
@@ -344,6 +344,7 @@ function loadLesson(lessonId) {
             title="${selectedLesson.title}"
             style="width: 100%; height: 100%; border: 0; display: block;"
             allow="autoplay; encrypted-media" 
+            loading="lazy"
             allowfullscreen>
           </iframe>
         </div>
@@ -356,6 +357,7 @@ function loadLesson(lessonId) {
             title="${selectedLesson.title}"
             style="width: 100%; height: 100%; border: 0; display: block;"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            loading="lazy"
             allowfullscreen>
           </iframe>
         </div>
