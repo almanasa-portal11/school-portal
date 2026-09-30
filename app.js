@@ -142,16 +142,30 @@ function parseCSVRows(csvText) {
 }
 
 // استخراج كود يوتيوب تلقائياً
-function extractYouTubeId(urlOrId) {
+// دالة استخراج المعرف سواء كان من يوتيوب أو جوجل درايف
+function extractVideoId(urlOrId) {
   if (!urlOrId) return '';
   urlOrId = urlOrId.trim();
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-  const match = urlOrId.match(regExp);
-  if (match && match[2].length === 11) {
-    return match[2];
+
+  // إذا كان رابط Google Drive
+  if (urlOrId.includes('drive.google.com')) {
+    const driveMatch = urlOrId.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (driveMatch && driveMatch[1]) {
+      return { type: 'drive', id: driveMatch[1] };
+    }
   }
-  return urlOrId;
+
+  // إذا كان رابط أو معرف YouTube
+  const ytRegExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = urlOrId.match(ytRegExp);
+  if (match && match[2].length === 11) {
+    return { type: 'youtube', id: match[2] };
+  }
+
+  // افترض أنه معرف عادي
+  return { type: 'drive', id: urlOrId };
 }
+
 
 // تحويل CSV إلى بيانات المنصة
 function parseCSVToDatabase(csvText) {
@@ -292,6 +306,7 @@ function toggleUnit(idx) {
 // تشغيل الفيديو وتحديث الملخص مع إخفاء شعارات يوتيوب نهائياً وتغطيتها
 // تشغيل الفيديو وتحديث الملخص بتنسيق كامل ومتناسق لكافة الشاشات
 // تشغيل الفيديو وتحديث الملخص مع حجب شريط العنوان وشعار يوتيوب
+// تشغيل الفيديو وتحديث الملخص (يدعم Google Drive و YouTube)
 function loadLesson(lessonId) {
   let selectedLesson = null;
 
@@ -304,25 +319,35 @@ function loadLesson(lessonId) {
 
   const playerEl = document.getElementById('player');
   if (playerEl && selectedLesson.youtubeId) {
-    playerEl.innerHTML = `
-      <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 12px; background: #000; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
-        
-        <!-- مشغل يوتيوب -->
-        <iframe 
-          src="https://www.youtube-nocookie.com/embed/${selectedLesson.youtubeId}?rel=0&modestbranding=1&controls=1" 
-          title="${selectedLesson.title}"
-          style="width: 100%; height: 100%; border: 0; display: block;"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
-        </iframe>
+    const videoData = extractVideoId(selectedLesson.youtubeId);
 
-        <!-- 1. غطاء أسود علوي كامل لإخفاء عنوان الفيديو ومنع الضغط عليه -->
-        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 55px; background: #000; z-index: 10; pointer-events: auto;"></div>
-
-        <!-- 2. غطاء أسود سفلي يساري لإخفاء شعار يوتيوب ومنع خروج الطالب -->
-        <div style="position: absolute; bottom: 0; left: 0; width: 130px; height: 42px; background: #000; z-index: 10; pointer-events: auto;"></div>
-
-      </div>
-    `;
+    if (videoData.type === 'drive') {
+      // مشغل Google Drive النقائي والتنفيذي السريع
+      playerEl.innerHTML = `
+        <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 12px; background: #000; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
+          <iframe 
+            src="https://drive.google.com/file/d/${videoData.id}/preview" 
+            title="${selectedLesson.title}"
+            style="width: 100%; height: 100%; border: 0; display: block;"
+            allow="autoplay; encrypted-media" 
+            allowfullscreen>
+          </iframe>
+        </div>
+      `;
+    } else {
+      // مشغل YouTube المقيد
+      playerEl.innerHTML = `
+        <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 12px; background: #000; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
+          <iframe 
+            src="https://www.youtube-nocookie.com/embed/${videoData.id}?rel=0&modestbranding=1&controls=1" 
+            title="${selectedLesson.title}"
+            style="width: 100%; height: 100%; border: 0; display: block;"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            allowfullscreen>
+          </iframe>
+        </div>
+      `;
+    }
   }
 
   const titleEl = document.getElementById('lesson-title');
