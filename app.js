@@ -1,4 +1,4 @@
-// 1. ضع رابط CSV الخاص بجدول جوجل هنا بين الكوتشين
+// 1. رابط CSV الخاص بجدول جوجل
 const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTu3rXbsh0yGGUB8dkB7pKgkpnQMb9gAi-J-8uw6O95DT7s8ogGc_TQ1EP3L12yjdKdp-8g1vfDwK7j/pub?output=csv';
 
 // هيكل البيانات الرئيسي
@@ -27,13 +27,13 @@ let selectedSectionId = "";
 let selectedSubjectId = "";
 
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. تعبئة القوائم المنسدلة أولاً
+  // 1. تعبئة القوائم المنسدلة
   populateDropdowns();
 
-  // 2. إظهار النافذة الترحيبية لاختيار الشعبة فوراً عند فتح الموقع
+  // 2. إظهار النافذة الترحيبية لاختيار الشعبة فوراً
   showWelcomeModal();
 
-  // 3. تهيئة مشغل الفيديو إذا كان موجوداً
+  // 3. تهيئة مشغل الفيديو Plyr
   if (document.getElementById('player')) {
     player = new Plyr('#player', {
       controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'fullscreen'],
@@ -50,7 +50,7 @@ function showWelcomeModal() {
   const modal = document.getElementById('welcome-modal');
   if (modal) {
     modal.classList.remove('hidden');
-    modal.classList.add('flex'); // لضمان ظهورها بموقع ممتاز في المنتصف
+    modal.classList.add('flex');
   }
 }
 
@@ -87,8 +87,8 @@ function populateDropdowns() {
 
 // جلب الحصص من شيت جوجل
 async function fetchLessonsFromSheet() {
-  if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL === 'ضع_رابط_جدول_جوجل_هنا') {
-    console.warn("تنبيه: لم يتم وضع رابط جدول جوجل بعد.");
+  if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes('ضع_رابط')) {
+    console.warn("تنبيه: لم يتم وضع رابط جدول جوجل بشكل صحيح.");
     return;
   }
 
@@ -97,7 +97,6 @@ async function fetchLessonsFromSheet() {
     const text = await res.text();
     parseCSVToDatabase(text);
     
-    // إذا كان الطالب قد اختار الشعبة سابقاً، يتم تحميل الحصص فوراً
     if (selectedSectionId) {
       loadSelectedCourseData();
     }
@@ -106,18 +105,80 @@ async function fetchLessonsFromSheet() {
   }
 }
 
-// تحويل الجدول إلى هيكل الموقع
+// دالة ذكية لتفكيك CSV بشكل يدعم الفواصل والنصوص بين التنصيص
+function parseCSVRows(csvText) {
+  const rows = [];
+  let currentRow = [];
+  let currentCell = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const nextChar = csvText[i + 1];
+
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        currentCell += '"';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+    } else if (char === ',' && !insideQuotes) {
+      currentRow.push(currentCell.trim());
+      currentCell = '';
+    } else if ((char === '\r' || char === '\n') && !insideQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      currentRow.push(currentCell.trim());
+      if (currentRow.some(c => c !== '')) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentCell = '';
+    } else {
+      currentCell += char;
+    }
+  }
+
+  if (currentCell || currentRow.length > 0) {
+    currentRow.push(currentCell.trim());
+    if (currentRow.some(c => c !== '')) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+}
+
+// استخراج كود الفيديو حتى لو قام المستخدم بوضع رابط يوتيوب كامل بالخطأ
+function extractYouTubeId(urlOrId) {
+  if (!urlOrId) return '';
+  urlOrId = urlOrId.trim();
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = urlOrId.match(regExp);
+  if (match && match[2].length === 11) {
+    return match[2];
+  }
+  return urlOrId;
+}
+
+// تحويل الجدول إلى هيكل البيانات الرئيسي للموقع
 function parseCSVToDatabase(csvText) {
-  const lines = csvText.trim().split('\n');
-  if (lines.length <= 1) return;
+  const rows = parseCSVRows(csvText);
+  if (rows.length <= 1) return;
 
   platformData.lessonsDatabase = {};
 
-  for (let i = 1; i < lines.length; i++) {
-    const row = lines[i].split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
     if (row.length < 9) continue;
 
-    const [sec, sub, unit, lessonId, title, youtubeId, duration, summary, pdfUrl] = row;
+    let [sec, sub, unit, lessonId, title, youtubeId, duration, summary, pdfUrl] = row;
+    
+    // تنظيف واستخراج كود يوتيوب تلقائياً
+    const cleanYoutubeId = extractYouTubeId(youtubeId);
+
     const key = `${sec}_${sub}`;
 
     if (!platformData.lessonsDatabase[key]) {
@@ -133,7 +194,7 @@ function parseCSVToDatabase(csvText) {
     unitGroup.lessons.push({
       id: lessonId,
       title: title,
-      youtubeId: youtubeId,
+      youtubeId: cleanYoutubeId,
       duration: duration,
       summary: summary,
       pdfUrl: pdfUrl
@@ -141,7 +202,7 @@ function parseCSVToDatabase(csvText) {
   }
 }
 
-// زر تأكيد اختيار الشعبة من النافذة الترحيبية
+// زر تأكيد اختيار الشعبة
 function confirmSectionSelection() {
   const select = document.getElementById('modal-section-select');
   if (select) {
@@ -161,7 +222,7 @@ function onSubjectChange() {
   loadSelectedCourseData();
 }
 
-// فتح النافذة الترحيبية يدوياً (إذا أراد تغيير شعبته)
+// فتح النافذة الترحيبية يدوياً
 function openSelectionModal() {
   showWelcomeModal();
 }
@@ -245,6 +306,7 @@ function loadLesson(lessonId) {
 
   if (!selectedLesson) return;
 
+  // تحديث مصدر مشغل الفيديو
   if (player) {
     player.source = {
       type: 'video',
@@ -258,7 +320,11 @@ function loadLesson(lessonId) {
 
   if (titleEl) titleEl.innerText = selectedLesson.title;
   if (durEl) durEl.innerText = `المدة: ${selectedLesson.duration}`;
-  if (sumEl) sumEl.innerHTML = selectedLesson.summary;
+  
+  // تحويل الأسطر الجديدة إلى <br> ليظهر الملخص منسقاً وكاملاً
+  if (sumEl) {
+    sumEl.innerHTML = selectedLesson.summary ? selectedLesson.summary.replace(/\n/g, '<br>') : '';
+  }
 
   const pdfBtn = document.getElementById('pdf-btn');
   if (pdfBtn) {
