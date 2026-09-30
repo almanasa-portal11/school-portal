@@ -291,6 +291,7 @@ function toggleUnit(idx) {
 // تشغيل الفيديو وتحديث الملخص (حل الشاشة السوداء)
 // تشغيل الفيديو وتحديث الملخص مع إخفاء شعارات يوتيوب نهائياً وتغطيتها
 // تشغيل الفيديو وتحديث الملخص بتنسيق كامل ومتناسق لكافة الشاشات
+// تشغيل الفيديو وتحديث الملخص مع حجب شريط العنوان وشعار يوتيوب
 function loadLesson(lessonId) {
   let selectedLesson = null;
 
@@ -301,22 +302,24 @@ function loadLesson(lessonId) {
 
   if (!selectedLesson) return;
 
-  // تضمين الفيديو بشكل متناسق ومستجيب 100% دون تغطية شريط تقديم الوقت
   const playerEl = document.getElementById('player');
   if (playerEl && selectedLesson.youtubeId) {
     playerEl.innerHTML = `
       <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; border-radius: 12px; background: #000; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);">
         
-        <!-- مشغل الفيديو بنسبة كاملة وواضحة -->
+        <!-- مشغل يوتيوب -->
         <iframe 
-  src="https://www.youtube-nocookie.com/embed/${selectedLesson.youtubeId}?rel=0&modestbranding=1&controls=1&fs=0" 
-  title="${selectedLesson.title}"
-  style="width: 100%; height: 100%; border: 0; display: block;"
-  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
-</iframe>
+          src="https://www.youtube-nocookie.com/embed/${selectedLesson.youtubeId}?rel=0&modestbranding=1&controls=1" 
+          title="${selectedLesson.title}"
+          style="width: 100%; height: 100%; border: 0; display: block;"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+        </iframe>
 
-        <!-- لمسة جمالية: تدرج علوي خفيف بعرض 100% ممتد على طول الخط دون حجب الضغط -->
-        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 50px; background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent); pointer-events: none; z-index: 2;"></div>
+        <!-- 1. غطاء أسود علوي كامل لإخفاء عنوان الفيديو ومنع الضغط عليه -->
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 55px; background: #000; z-index: 10; pointer-events: auto;"></div>
+
+        <!-- 2. غطاء أسود سفلي يساري لإخفاء شعار يوتيوب ومنع خروج الطالب -->
+        <div style="position: absolute; bottom: 0; left: 0; width: 130px; height: 42px; background: #000; z-index: 10; pointer-events: auto;"></div>
 
       </div>
     `;
