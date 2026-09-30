@@ -71,11 +71,10 @@ function populateDropdowns() {
   selectedSubjectId = platformData.subjects[0]?.id || "";
 }
 
-// ⚡ جلب الحصص مع الكاش الفوري لتسريع الفتح بـ 10 أضعاف
+// جلب الحصص مع الكاش الفوري
 async function fetchLessonsFromSheet() {
   if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes('ضع_رابط')) return;
 
-  // 1. تحميل فوري من الكاش المحلي للمتصفح إذا كان متوفراً
   const cachedData = localStorage.getItem('school_portal_lessons_cache');
   if (cachedData) {
     try {
@@ -88,13 +87,11 @@ async function fetchLessonsFromSheet() {
     }
   }
 
-  // 2. تحديث البيانات من شيت جوجل في الخلفية
   try {
     const res = await fetch(GOOGLE_SHEET_CSV_URL);
     const text = await res.text();
     parseCSVToDatabase(text);
     
-    // حفظ النسخة المحدثة في الذاكرة
     localStorage.setItem('school_portal_lessons_cache', JSON.stringify(platformData.lessonsDatabase));
     
     if (selectedSectionId) {
@@ -166,7 +163,7 @@ function resolveSubjectId(subStr) {
   return matched ? matched.id : subStr;
 }
 
-// استخراج الآيدي
+// استخراج المعرف (يوتيوب أو جوجل درايف)
 function extractVideoId(urlOrId) {
   if (!urlOrId) return { type: 'youtube', id: '' };
   urlOrId = urlOrId.trim();
@@ -191,7 +188,7 @@ function extractVideoId(urlOrId) {
   return { type: 'drive', id: urlOrId };
 }
 
-// تحويل البيانات لملفات المنصة
+// تحويل CSV إلى بيانات المنصة
 function parseCSVToDatabase(csvText) {
   const rows = parseCSVRows(csvText);
   if (rows.length <= 1) return;
@@ -229,6 +226,7 @@ function parseCSVToDatabase(csvText) {
   }
 }
 
+// تأكيد اختيار الشعبة
 function confirmSectionSelection() {
   const select = document.getElementById('modal-section-select');
   if (select) {
@@ -239,6 +237,7 @@ function confirmSectionSelection() {
   loadSelectedCourseData();
 }
 
+// تغيير المادة
 function onSubjectChange() {
   const select = document.getElementById('header-subject-select');
   if (select) {
@@ -247,10 +246,12 @@ function onSubjectChange() {
   loadSelectedCourseData();
 }
 
+// فتح النافذة الترحيبية
 function openSelectionModal() {
   showWelcomeModal();
 }
 
+// تحميل بيانات المادة
 function loadSelectedCourseData() {
   const key = `${selectedSectionId}_${selectedSubjectId}`;
   currentUnits = platformData.lessonsDatabase[key] || [];
@@ -266,6 +267,7 @@ function loadSelectedCourseData() {
   }
 }
 
+// رسم القائمة الجانبية
 function renderTree(units) {
   const container = document.getElementById('course-tree');
   if (!container) return;
@@ -306,17 +308,29 @@ function renderTree(units) {
         </button>
       `;
     });
-    // ============================================================
-// مشغل الحصص — متجاوب مع كل الأجهزة + أزرار السرعة والجودة
-// استبدل به دالة loadLesson القديمة (وخلّي toggleUnit و extractVideoId زي ما هنّ)
+    lessonsList += `</div>`;
+
+    unitBox.innerHTML = unitHeader + lessonsList;
+    container.appendChild(unitBox);
+  });
+
+  const countBadge = document.getElementById('lesson-count-badge');
+  if (countBadge) countBadge.innerText = `${totalLessons} حصة`;
+}
+
+function toggleUnit(idx) {
+  const el = document.getElementById(`unit-${idx}`);
+  if (el) el.classList.toggle('hidden');
+}
+
+// ============================================================
+// مشغل الحصص المتطور (CSS + YouTube API + Google Drive)
 // ============================================================
 
-// ---------- ستايل المشغل (بينحط مرة وحدة تلقائياً) ----------
 (function injectPlayerStyles() {
   if (document.getElementById('vp-styles')) return;
   const css = `
     .vp-wrap { width: 100%; max-width: 100%; }
-    /* نسبة 16:9 تشتغل على كل المتصفحات القديمة والجديدة (بديل aspect-ratio) */
     .vp-ratio {
       position: relative;
       width: 100%;
@@ -381,7 +395,6 @@ function renderTree(units) {
   document.head.appendChild(style);
 })();
 
-// ---------- تحميل YouTube IFrame API ----------
 let ytPlayer = null;
 let ytApiPromise = null;
 let lessonLoadToken = 0;
@@ -408,7 +421,6 @@ function escapeHtml(str) {
   }[c]));
 }
 
-// ---------- أزرار السرعة والجودة (يوتيوب) ----------
 function buildYouTubeControls(container) {
   const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
   const qualities = [
@@ -447,14 +459,14 @@ function buildYouTubeControls(container) {
   });
 
   const qSelect = container.querySelector('#vp-quality');
-  qSelect.addEventListener('change', () => {
-    if (!ytPlayer || !ytPlayer.setPlaybackQuality) return;
-    // ملاحظة: يوتيوب صار يعتبر هذا الأمر "اقتراح" وممكن يتجاهله حسب النت والجهاز
-    ytPlayer.setPlaybackQuality(qSelect.value);
-  });
+  if (qSelect) {
+    qSelect.addEventListener('change', () => {
+      if (!ytPlayer || !ytPlayer.setPlaybackQuality) return;
+      ytPlayer.setPlaybackQuality(qSelect.value);
+    });
+  }
 }
 
-// ---------- تشغيل الحصة ----------
 function loadLesson(lessonId) {
   let selectedLesson = null;
 
@@ -467,7 +479,6 @@ function loadLesson(lessonId) {
 
   const token = ++lessonLoadToken;
 
-  // تنظيف المشغل السابق
   if (ytPlayer && typeof ytPlayer.destroy === 'function') {
     try { ytPlayer.destroy(); } catch (e) {}
   }
@@ -479,7 +490,6 @@ function loadLesson(lessonId) {
     const safeTitle = escapeHtml(selectedLesson.title);
 
     if (videoData.type === 'drive') {
-      // ----- جوجل درايف -----
       playerEl.innerHTML = `
         <div class="vp-wrap">
           <div class="vp-ratio">
@@ -499,7 +509,6 @@ function loadLesson(lessonId) {
         </div>
       `;
     } else {
-      // ----- يوتيوب (مع أزرار السرعة والجودة) -----
       playerEl.innerHTML = `
         <div class="vp-wrap">
           <div class="vp-ratio"><div id="yt-target"></div></div>
@@ -508,7 +517,7 @@ function loadLesson(lessonId) {
       `;
 
       loadYouTubeApi().then(() => {
-        if (token !== lessonLoadToken) return; // المستخدم انتقل لحصة ثانية
+        if (token !== lessonLoadToken) return;
         ytPlayer = new YT.Player('yt-target', {
           host: 'https://www.youtube-nocookie.com',
           videoId: videoData.id,
