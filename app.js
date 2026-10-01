@@ -24,11 +24,80 @@ const platformData = {
 let currentUnits = [];
 let selectedSectionId = "";
 let selectedSubjectId = "";
+let currentLessonId = null;
+
+// مزامنة حالة الصفحة مع رابط URL
+function updateURL(push = false) {
+  if (!window.history || !window.history.pushState) return;
+  const url = new URL(window.location.href);
+  
+  if (selectedSectionId) url.searchParams.set('section', selectedSectionId);
+  if (selectedSubjectId) url.searchParams.set('subject', selectedSubjectId);
+  if (currentLessonId) url.searchParams.set('lesson', currentLessonId);
+
+  const state = { section: selectedSectionId, subject: selectedSubjectId, lesson: currentLessonId };
+  if (push) {
+    window.history.pushState(state, '', url.toString());
+  } else {
+    window.history.replaceState(state, '', url.toString());
+  }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   populateDropdowns();
-  showWelcomeModal();
+
+  // قراءة الحالة الحالية من رابط URL أو ذاكرة المتصفح
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlSec = urlParams.get('section');
+  const urlSub = urlParams.get('subject');
+  const urlLes = urlParams.get('lesson');
+
+  const savedSec = urlSec || localStorage.getItem('school_portal_section');
+  const savedSub = urlSub || localStorage.getItem('school_portal_subject');
+
+  if (savedSec && platformData.sections.some(s => s.id === savedSec)) {
+    selectedSectionId = savedSec;
+    const secSelect = document.getElementById('modal-section-select');
+    if (secSelect) secSelect.value = savedSec;
+    hideWelcomeModal();
+  } else {
+    showWelcomeModal();
+  }
+
+  if (savedSub && platformData.subjects.some(s => s.id === savedSub)) {
+    selectedSubjectId = savedSub;
+  } else {
+    selectedSubjectId = platformData.subjects[0]?.id || "arabic";
+  }
+
+  const subSelect = document.getElementById('header-subject-select');
+  if (subSelect) subSelect.value = selectedSubjectId;
+
+  if (urlLes) {
+    currentLessonId = urlLes;
+  }
+
   fetchLessonsFromSheet();
+});
+
+// التعامل مع أزرار الرجوع والأمام في المتصفح
+window.addEventListener('popstate', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlSec = urlParams.get('section');
+  const urlSub = urlParams.get('subject');
+  const urlLes = urlParams.get('lesson');
+
+  if (urlSec) selectedSectionId = urlSec;
+  if (urlSub) selectedSubjectId = urlSub;
+  if (urlLes) currentLessonId = urlLes;
+
+  const secSelect = document.getElementById('modal-section-select');
+  if (secSelect && selectedSectionId) secSelect.value = selectedSectionId;
+
+  const subSelect = document.getElementById('header-subject-select');
+  if (subSelect && selectedSubjectId) subSelect.value = selectedSubjectId;
+
+  loadSelectedCourseData(currentLessonId, false);
 });
 
 // إظهار النافذة الترحيبية
@@ -68,7 +137,9 @@ function populateDropdowns() {
     });
   }
 
-  selectedSubjectId = platformData.subjects[0]?.id || "";
+  if (!selectedSubjectId) {
+    selectedSubjectId = platformData.subjects[0]?.id || "";
+  }
 }
 
 // جلب الحصص مع الكاش الفوري
@@ -80,7 +151,7 @@ async function fetchLessonsFromSheet() {
     try {
       platformData.lessonsDatabase = JSON.parse(cachedData);
       if (selectedSectionId) {
-        loadSelectedCourseData();
+        loadSelectedCourseData(currentLessonId, false);
       }
     } catch (e) {
       console.error("Cache read error", e);
@@ -95,7 +166,7 @@ async function fetchLessonsFromSheet() {
     localStorage.setItem('school_portal_lessons_cache', JSON.stringify(platformData.lessonsDatabase));
     
     if (selectedSectionId) {
-      loadSelectedCourseData();
+      loadSelectedCourseData(currentLessonId, false);
     }
   } catch (err) {
     console.error("خطأ في جلب الحصص من الشيت:", err);
@@ -232,10 +303,11 @@ function confirmSectionSelection() {
   const select = document.getElementById('modal-section-select');
   if (select) {
     selectedSectionId = select.value;
+    localStorage.setItem('school_portal_section', selectedSectionId);
   }
   
   hideWelcomeModal();
-  loadSelectedCourseData();
+  loadSelectedCourseData(currentLessonId, true);
 }
 
 // تغيير المادة
@@ -243,29 +315,72 @@ function onSubjectChange() {
   const select = document.getElementById('header-subject-select');
   if (select) {
     selectedSubjectId = select.value;
+    localStorage.setItem('school_portal_subject', selectedSubjectId);
   }
-  loadSelectedCourseData();
+  currentLessonId = null; // البدء من أول حصة للمادة الجديدة
+  loadSelectedCourseData(null, true);
 }
 
-// فتح النافذة الترحيبية
+// فتح نافذة اختيار الشعبة
 function openSelectionModal() {
+  const select = document.getElementById('modal-section-select');
+  if (select && selectedSectionId) {
+    select.value = selectedSectionId;
+  }
   showWelcomeModal();
 }
 
 // تحميل بيانات المادة
-function loadSelectedCourseData() {
+function loadSelectedCourseData(preferredLessonId = null, shouldPushUrl = false) {
   const key = `${selectedSectionId}_${selectedSubjectId}`;
   currentUnits = platformData.lessonsDatabase[key] || [];
 
   const secName = platformData.sections.find(s => s.id === selectedSectionId)?.name || '';
   const label = document.getElementById('current-section-label');
-  if (label) label.innerText = `الشعبة: ${secName}`;
+  if (label) label.innerText = `الشعبة: ${secName || 'لم تحدد'}`;
+
+  const subSelect = document.getElementById('header-subject-select');
+  if (subSelect) subSelect.value = selectedSubjectId;
 
   renderTree(currentUnits);
 
-  if (currentUnits.length > 0 && currentUnits[0].lessons.length > 0) {
-    loadLesson(currentUnits[0].lessons[0].id);
+  let lessonToLoad = null;
+  const targetId = preferredLessonId || currentLessonId;
+
+  if (targetId) {
+    for (const u of currentUnits) {
+      const match = u.lessons.find(l => String(l.id) === String(targetId));
+      if (match) {
+        lessonToLoad = match.id;
+        break;
+      }
+    }
   }
+
+  if (!lessonToLoad && currentUnits.length > 0 && currentUnits[0].lessons.length > 0) {
+    lessonToLoad = currentUnits[0].lessons[0].id;
+  }
+
+  if (lessonToLoad) {
+    loadLesson(lessonToLoad, shouldPushUrl);
+  } else {
+    clearPlayerAndSummary();
+    updateURL(shouldPushUrl);
+  }
+}
+
+// تفريغ المشغل والملخص عند عدم وجود دروس
+function clearPlayerAndSummary() {
+  const playerEl = document.getElementById('player');
+  if (playerEl) playerEl.innerHTML = `<div class="p-8 text-center text-slate-500 text-xs">لا تتوفر حصص مسجلة لهذه المادة والشعبة حالياً.</div>`;
+  const titleEl = document.getElementById('lesson-title');
+  if (titleEl) titleEl.innerText = 'اختر حصة للبدء';
+  const durEl = document.getElementById('lesson-duration');
+  if (durEl) durEl.innerText = 'المدة: --:--';
+  const sumEl = document.getElementById('lesson-summary');
+  if (sumEl) sumEl.innerText = 'الرجاء اختيار الحصة المطلوبة من القائمة الجانبية.';
+  const pdfBtn = document.getElementById('pdf-btn');
+  if (pdfBtn) pdfBtn.classList.add('hidden');
 }
 
 // رسم القائمة الجانبية
@@ -289,23 +404,30 @@ function renderTree(units) {
 
   units.forEach((unit, uIdx) => {
     totalLessons += unit.lessons.length;
+    const hasActiveLesson = unit.lessons.some(l => String(l.id) === String(currentLessonId));
+    const isHidden = (uIdx === 0 || hasActiveLesson) ? '' : 'hidden';
 
     const unitBox = document.createElement('div');
     unitBox.className = 'border border-slate-800 rounded-lg overflow-hidden bg-slate-950/40 mb-2';
 
     const unitHeader = `
       <button onclick="toggleUnit(${uIdx})" class="w-full text-right p-3 bg-slate-800/60 font-bold text-slate-200 hover:bg-slate-800 flex justify-between items-center text-xs border-b border-slate-800">
-        <span class="truncate pl-2">${unit.unitTitle}</span>
+        <span class="truncate pl-2">${escapeHtml(unit.unitTitle)}</span>
         <span class="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded shrink-0">${unit.lessons.length} حصة</span>
       </button>
     `;
 
-    let lessonsList = `<div id="unit-${uIdx}" class="divide-y divide-slate-800/60">`;
+    let lessonsList = `<div id="unit-${uIdx}" class="${isHidden} divide-y divide-slate-800/60">`;
     unit.lessons.forEach(lesson => {
+      const isActive = String(lesson.id) === String(currentLessonId);
+      const activeClass = isActive 
+        ? 'bg-indigo-600/20 text-indigo-300 font-bold border-r-2 border-indigo-500' 
+        : 'hover:bg-indigo-600/10 text-slate-300 hover:text-indigo-300';
+
       lessonsList += `
-        <button onclick="loadLesson('${lesson.id}')" class="w-full text-right p-2.5 hover:bg-indigo-600/10 text-slate-300 hover:text-indigo-300 text-xs transition flex justify-between items-center group">
-          <span class="truncate pl-2 font-medium">${lesson.title}</span>
-          <span class="text-[10px] bg-slate-800 text-slate-400 group-hover:bg-indigo-950 group-hover:text-indigo-300 px-2 py-0.5 rounded transition shrink-0">${lesson.duration}</span>
+        <button id="lesson-btn-${lesson.id}" onclick="loadLesson('${lesson.id}', true)" class="w-full text-right p-2.5 ${activeClass} text-xs transition flex justify-between items-center group">
+          <span class="truncate pl-2 font-medium">${escapeHtml(lesson.title)}</span>
+          <span class="text-[10px] bg-slate-800 text-slate-400 group-hover:bg-indigo-950 group-hover:text-indigo-300 px-2 py-0.5 rounded transition shrink-0">${escapeHtml(lesson.duration)}</span>
         </button>
       `;
     });
@@ -503,7 +625,7 @@ function buildYouTubeControls(container) {
   }
 }
 
-// تحويل خلية الصور إلى وسوم <img> (روابط، أسماء ملفات، أو روابط درايف)
+// تحويل خلية الصور إلى وسوم <img>
 function buildImagesHtml(raw) {
   if (!raw) return '';
   const items = String(raw).split(/[\n,;،]+|\s{2,}/).map(x => x.trim()).filter(Boolean);
@@ -520,7 +642,7 @@ function buildImagesHtml(raw) {
   }).join('');
 }
 
-function loadLesson(lessonId) {
+function loadLesson(lessonId, updateHistory = true) {
   let selectedLesson = null;
 
   currentUnits.forEach(u => {
@@ -529,6 +651,18 @@ function loadLesson(lessonId) {
   });
 
   if (!selectedLesson) return;
+
+  currentLessonId = lessonId;
+  updateURL(updateHistory);
+
+  // تحديث تمييز الزر المختار في الفهرس
+  document.querySelectorAll('[id^="lesson-btn-"]').forEach(btn => {
+    btn.className = 'w-full text-right p-2.5 hover:bg-indigo-600/10 text-slate-300 hover:text-indigo-300 text-xs transition flex justify-between items-center group';
+  });
+  const activeBtn = document.getElementById(`lesson-btn-${lessonId}`);
+  if (activeBtn) {
+    activeBtn.className = 'w-full text-right p-2.5 bg-indigo-600/20 text-indigo-300 font-bold border-r-2 border-indigo-500 text-xs transition flex justify-between items-center group';
+  }
 
   const token = ++lessonLoadToken;
 
