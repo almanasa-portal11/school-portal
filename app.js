@@ -199,7 +199,7 @@ function parseCSVToDatabase(csvText) {
     const row = rows[i];
     if (row.length < 6) continue;
 
-    let [sec, sub, unit, lessonId, title, youtubeId, duration = '', summary = '', pdfUrl = ''] = row;
+    let [sec, sub, unit, lessonId, title, youtubeId, duration = '', summary = '', pdfUrl = '', images = ''] = row;
     
     const cleanSec = resolveSectionId(sec);
     const cleanSub = resolveSubjectId(sub);
@@ -221,7 +221,8 @@ function parseCSVToDatabase(csvText) {
       youtubeId: youtubeId,
       duration: duration,
       summary: summary,
-      pdfUrl: pdfUrl
+      pdfUrl: pdfUrl,
+      images: images
     });
   }
 }
@@ -502,6 +503,23 @@ function buildYouTubeControls(container) {
   }
 }
 
+// تحويل خلية الصور إلى وسوم <img> (روابط، أسماء ملفات، أو روابط درايف)
+function buildImagesHtml(raw) {
+  if (!raw) return '';
+  const items = String(raw).split(/[\n,;،]+|\s{2,}/).map(x => x.trim()).filter(Boolean);
+  return items.map(item => {
+    let src = item;
+    if (src.includes('drive.google.com')) {
+      const m = src.match(/\/d\/([a-zA-Z0-9_-]+)/) || src.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (m) src = `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1600`;
+    }
+    const safe = escapeHtml(src);
+    return `<a href="${safe}" target="_blank" rel="noopener" style="display:block;margin:10px 0">` +
+           `<img src="${safe}" alt="صورة توضيحية" loading="lazy" ` +
+           `style="max-width:100%;height:auto;border-radius:10px;border:1px solid rgba(148,163,184,.3)"></a>`;
+  }).join('');
+}
+
 function loadLesson(lessonId) {
   let selectedLesson = null;
 
@@ -618,7 +636,8 @@ function loadLesson(lessonId) {
   if (durEl) durEl.innerText = `المدة: ${selectedLesson.duration}`;
 
   if (sumEl) {
-    sumEl.innerHTML = selectedLesson.summary ? selectedLesson.summary.replace(/\n/g, '<br>') : '';
+    const summaryHtml = selectedLesson.summary ? selectedLesson.summary.replace(/\n/g, '<br>') : '';
+    sumEl.innerHTML = summaryHtml + buildImagesHtml(selectedLesson.images);
   }
 
   const pdfBtn = document.getElementById('pdf-btn');
