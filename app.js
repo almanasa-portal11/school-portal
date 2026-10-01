@@ -537,11 +537,10 @@ function loadLesson(lessonId) {
             </button>
           </div>
           <div class="vp-controls">
-            <span class="vp-hint">للسرعة والجودة: اضغط أيقونة ⚙️ داخل المشغل</span>
-            <button type="button" class="vp-btn" id="vp-fs">⛶ ملء الشاشة</button>
+            <span class="vp-hint">للسرعة والجودة وملء الشاشة: استخدم أزرار المشغل (⚙️ و ⛶)</span>
             <a class="vp-btn" href="${viewUrl}" target="_blank" rel="noopener">فتح في درايف</a>
             <div class="vp-error" id="vp-error">
-              التحميل بطيء أو لم يعمل؟ جرّب
+              الفيديو ما اشتغل أو بضل يحمّل؟ جرّب
               <button type="button" class="vp-btn" id="vp-retry">إعادة المحاولة</button>
               أو افتحه في درايف.
             </div>
@@ -571,22 +570,15 @@ function loadLesson(lessonId) {
         const frame = document.getElementById('vp-iframe');
         const loading = document.getElementById('vp-loading');
         frame.addEventListener('load', () => {
-          clearTimeout(slowTimer);
           loading.classList.add('vp-done');
           setTimeout(() => loading.remove(), 350);
         });
-        slowTimer = setTimeout(() => errBox.classList.add('vp-show'), 12000);
+        slowTimer = setTimeout(() => errBox.classList.add('vp-show'), 10000);
       };
 
       cover.addEventListener('click', startDrive);
       document.getElementById('vp-retry').addEventListener('click', startDrive);
 
-      document.getElementById('vp-fs').addEventListener('click', () => {
-        const target = document.getElementById('vp-iframe') || ratio;
-        const fn = target.requestFullscreen || target.webkitRequestFullscreen || target.msRequestFullscreen;
-        if (fn) { try { fn.call(target); return; } catch (e) {} }
-        window.open(viewUrl, '_blank', 'noopener');
-      });
     } else {
       playerEl.innerHTML = `
         <div class="vp-wrap">
