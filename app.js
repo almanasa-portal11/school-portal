@@ -384,6 +384,41 @@ function toggleUnit(idx) {
     }
     .vp-select option { color: #000; }
     .vp-hint { font-size: 13px; opacity: .75; }
+    .vp-cover {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; border: 0; cursor: pointer; color: #fff; padding: 12px; text-align: center;
+      background: radial-gradient(circle at 50% 40%, #1e293b 0%, #020617 80%);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .vp-play {
+      width: 68px; height: 68px; border-radius: 50%;
+      background: #4f46e5; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 0 8px rgba(79,70,229,.25);
+      font-size: 28px; padding-inline-start: 4px;
+    }
+    .vp-cover-title { font-size: 14px; font-weight: 700; max-width: 90%; line-height: 1.5; }
+    .vp-cover-sub { font-size: 12px; opacity: .7; }
+    .vp-loading {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px; background: #000; color: #cbd5e1; font-size: 13px;
+      pointer-events: none; transition: opacity .3s;
+    }
+    .vp-loading.vp-done { opacity: 0; }
+    .vp-spinner {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 3px solid rgba(255,255,255,.2); border-top-color: #818cf8;
+      animation: vp-spin .8s linear infinite;
+    }
+    @keyframes vp-spin { to { transform: rotate(360deg); } }
+    .vp-error { display: none; font-size: 13px; color: #fbbf24; width: 100%; }
+    .vp-error.vp-show { display: block; }
+    .vp-controls .vp-btn { flex: 0 1 auto; }
+    @media (max-width: 480px) {
+      .vp-controls { flex-direction: column; align-items: stretch; }
+      .vp-controls .vp-btn { justify-content: center; width: 100%; }
+      .vp-play { width: 56px; height: 56px; font-size: 22px; }
+    }
     @media (max-width: 480px) {
       .vp-ratio { border-radius: 8px; }
       .vp-btn { padding: 6px 10px; }
@@ -490,24 +525,68 @@ function loadLesson(lessonId) {
     const safeTitle = escapeHtml(selectedLesson.title);
 
     if (videoData.type === 'drive') {
+      const previewUrl = `https://drive.google.com/file/d/${videoData.id}/preview`;
+      const viewUrl = `https://drive.google.com/file/d/${videoData.id}/view`;
       playerEl.innerHTML = `
         <div class="vp-wrap">
-          <div class="vp-ratio">
-            <iframe
-              src="https://drive.google.com/file/d/${videoData.id}/preview"
-              title="${safeTitle}"
-              allow="autoplay; encrypted-media; fullscreen"
-              loading="lazy"
-              allowfullscreen>
-            </iframe>
+          <div class="vp-ratio" id="vp-ratio">
+            <button type="button" class="vp-cover" id="vp-cover" aria-label="تشغيل الفيديو">
+              <span class="vp-play">▶</span>
+              <span class="vp-cover-title">${safeTitle}</span>
+              <span class="vp-cover-sub">اضغط لتشغيل التسجيل</span>
+            </button>
           </div>
           <div class="vp-controls">
             <span class="vp-hint">للسرعة والجودة: اضغط أيقونة ⚙️ داخل المشغل</span>
-            <a class="vp-btn" href="https://drive.google.com/file/d/${videoData.id}/view"
-               target="_blank" rel="noopener">فتح في درايف</a>
+            <button type="button" class="vp-btn" id="vp-fs">⛶ ملء الشاشة</button>
+            <a class="vp-btn" href="${viewUrl}" target="_blank" rel="noopener">فتح في درايف</a>
+            <div class="vp-error" id="vp-error">
+              التحميل بطيء أو لم يعمل؟ جرّب
+              <button type="button" class="vp-btn" id="vp-retry">إعادة المحاولة</button>
+              أو افتحه في درايف.
+            </div>
           </div>
         </div>
       `;
+
+      const ratio = document.getElementById('vp-ratio');
+      const cover = document.getElementById('vp-cover');
+      const errBox = document.getElementById('vp-error');
+      let slowTimer = null;
+
+      const startDrive = () => {
+        if (token !== lessonLoadToken) return;
+        clearTimeout(slowTimer);
+        errBox.classList.remove('vp-show');
+        ratio.innerHTML = `
+          <iframe id="vp-iframe"
+            src="${previewUrl}"
+            title="${safeTitle}"
+            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+            referrerpolicy="no-referrer-when-downgrade"
+            allowfullscreen></iframe>
+          <div class="vp-loading" id="vp-loading">
+            <div class="vp-spinner"></div><span>جاري تحميل الفيديو...</span>
+          </div>`;
+        const frame = document.getElementById('vp-iframe');
+        const loading = document.getElementById('vp-loading');
+        frame.addEventListener('load', () => {
+          clearTimeout(slowTimer);
+          loading.classList.add('vp-done');
+          setTimeout(() => loading.remove(), 350);
+        });
+        slowTimer = setTimeout(() => errBox.classList.add('vp-show'), 12000);
+      };
+
+      cover.addEventListener('click', startDrive);
+      document.getElementById('vp-retry').addEventListener('click', startDrive);
+
+      document.getElementById('vp-fs').addEventListener('click', () => {
+        const target = document.getElementById('vp-iframe') || ratio;
+        const fn = target.requestFullscreen || target.webkitRequestFullscreen || target.msRequestFullscreen;
+        if (fn) { try { fn.call(target); return; } catch (e) {} }
+        window.open(viewUrl, '_blank', 'noopener');
+      });
     } else {
       playerEl.innerHTML = `
         <div class="vp-wrap">
