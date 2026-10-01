@@ -4,24 +4,55 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>المنصة التعليمية - الحادي عشر علمي</title>
-  <!-- خط "Tajawal" الرسمي -->
+  
   <!-- تسريع الاتصال المسبق بالسيرفرات -->
-<link rel="preconnect" href="https://drive.google.com">
-<link rel="preconnect" href="https://www.youtube-nocookie.com">
-<link rel="dns-prefetch" href="https://docs.google.com">
+  <link rel="preconnect" href="https://drive.google.com">
+  <link rel="preconnect" href="https://www.youtube-nocookie.com">
+  <link rel="dns-prefetch" href="https://docs.google.com">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Plyr CSS (مشغل الفيديو) -->
   <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+  
   <style>
     body { font-family: 'Tajawal', sans-serif; }
+    
     .plyr__controls__item[data-plyr="pip"],
     .plyr__controls__item[data-plyr="airplay"] { display: none; }
     
+    /* إصلاح استجابة مشغل الفيديو Plyr لمنع تداخل العناصر على الجوال */
+    .video-container {
+      position: relative;
+      width: 100%;
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+    
+    .plyr {
+      border-radius: 0.75rem;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .plyr--video {
+      aspect-ratio: 16 / 9;
+    }
+
+    /* تحسين إضافي لأزرار التحكم في أجهزة الجوال */
+    @media (max-width: 640px) {
+      .plyr__controls {
+        padding: 6px !important;
+      }
+      .plyr__controls__item {
+        padding: 3px !important;
+      }
+    }
+
     /* شريط التمرير المخصص */
     .custom-scrollbar::-webkit-scrollbar {
       width: 5px;
@@ -69,7 +100,7 @@
     </div>
   </div>
 
-  <!-- الهيدر العلوي الرسمي -->
+  <!-- الهيدر العلوي الرسمى -->
   <header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-40">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
       
@@ -106,17 +137,18 @@
     
     <!-- مشغل الفيديو والملخص -->
     <section class="lg:col-span-2 space-y-5">
-      <div class="rounded-xl overflow-hidden shadow-xl bg-black border border-slate-800 aspect-video">
+      <!-- حاوية الفيديو الاستجابية الجديدة -->
+      <div class="video-container shadow-xl bg-black border border-slate-800">
         <div id="player" data-plyr-provider="youtube" data-plyr-embed-id=""></div>
       </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
-        <div class="flex justify-between items-start border-b border-slate-800 pb-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 md:p-6 space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-4">
           <div>
-            <h2 id="lesson-title" class="text-xl font-bold text-white">اختر حصة للبدء</h2>
+            <h2 id="lesson-title" class="text-lg md:text-xl font-bold text-white">اختر حصة للبدء</h2>
             <p id="lesson-duration" class="text-xs text-slate-400 mt-1">المدة: --:--</p>
           </div>
-          <a id="pdf-btn" href="#" target="_blank" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2.5 rounded-lg font-bold transition">
+          <a id="pdf-btn" href="#" target="_blank" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2.5 rounded-lg font-bold transition text-center w-full sm:w-auto">
             تحميل ملخص (PDF)
           </a>
         </div>
@@ -131,7 +163,7 @@
     </section>
 
     <!-- القائمة الجانبية لفهرس الحصص -->
-    <aside class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col space-y-3 h-[78vh]">
+    <aside class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col space-y-3 h-[450px] lg:h-[78vh]">
       <div class="border-b border-slate-800 pb-3 flex justify-between items-center">
         <h3 class="text-sm font-bold text-slate-200">فهرس الوحدات والحصص</h3>
         <span id="lesson-count-badge" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">0 حصص</span>
@@ -145,6 +177,6 @@
   </main>
 
   <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
-<script src="app.js?v=13"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>
